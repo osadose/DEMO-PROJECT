@@ -1,0 +1,17 @@
+# Core Python pipeline dependencies
+pandas
+numpy
+scipy
+scikit-learn
+statsmodels
+matplotlib
+seaborn
+stepmix
+pymc
+arviz
+
+# Optional analysis methods and development tests
+lifelines
+kmodes
+gower
+pytest

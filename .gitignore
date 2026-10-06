@@ -1,0 +1,36 @@
+# Python virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python cache, test, and coverage files
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Jupyter temporary files
+.ipynb_checkpoints/
+
+# R session and IDE files
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
+
+# Project-local R package installations (keep renv.lock and renv configuration tracked)
+renv/library/
+renv/staging/
+
+# Generated analysis outputs (keep source data and documentation tracked)
+outputs/
+results/
+
+# Operating system files
+.DS_Store
+Thumbs.db
+Desktop.ini
