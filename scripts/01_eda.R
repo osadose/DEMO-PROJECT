@@ -4,6 +4,9 @@
 bank_data <- read_delim("data/BankMarketing.csv",
                         delim = ";", escape_double = FALSE, trim_ws = TRUE)
 
+#adding index column for future use
+bank_data <- cbind(index = 1:nrow(bank_data), bank_data)
+
 # Data Structure ---------------------------------
 str(bank_data)
 # 41,188 x 21 
@@ -13,9 +16,8 @@ str(bank_data)
 
 glimpse(bank_data)
 # unknown pulling through rather than NA
-
+table(bank_data$y)
 head(bank_data)
-
 
 # Understanding Each Variable --------------------
 names(bank_data)
@@ -38,11 +40,14 @@ names(bank_data)
 # cons.price.inx (num) - consumer price index, monthly indicator
 # cons.conf.ind (num) - consumer confidence index, monthly indicator
 # euribor3m (num) - euribor 3 month rate, daily indicator
-# nr.employed - number of employees, quarterly indicator
+# nr.employed (num) - number of employees, quarterly indicator
 # duration (num) - last contact duration, excluded from predictors
 
-##
+
 # Missing Data Analysis ------------------------------
+
+## Note: left this in for learning but not going to be used in remaining data prep
+
 # previously identified that values come through as "unknown"
 sapply(bank_data, function(x) sum(x== "unknown"))
 # unknown data in variables, job (330), marital (80), education (1731), default (8597), housing (990), and loan (990).
@@ -79,6 +84,10 @@ miss_case_summary(bank_data_na)
 
 # Variable Analysis -------------------
 
+## y -----------------------------
+bank_data_proc = bank_data %>%
+  mutate(subscribed = if_else(y =="yes", 1, 0))
+
 ## Contact ----------------------
 bank_data %>%
   count(contact, y) %>%
@@ -90,6 +99,10 @@ ggplot(bank_data, aes(contact, fill = y)) +
   coord_flip()
 #Variable is significant. There is a higher percentage of subscribers out of those contacted
 #by cellular vs those contacted by telephone
+# Create two columns for contact where 1 = cellular and 0 = telephone
+bank_data_proc = bank_data_proc %>%
+  mutate(
+  cellular_contact = if_else(contact == "cellular", 1, 0))
 
 ## Campaign ---------------------
 bank_data %>% 
@@ -100,10 +113,10 @@ bank_data %>%
              scales = "free_y") +
   scale_x_continuous(breaks = seq(0, 50, 5))
 
-#C#C#Calling more than 10 times in a single campaign is excess and so these observations
+#Calling more than 10 times in a single campaign is excess and so these observations
 #will be considered outliers
 
-bank_data_proc = bank_data %>%
+bank_data_proc = bank_data_proc %>%
   filter(campaign <=10)
 bank_data_proc %>% 
   ggplot() +
@@ -118,6 +131,11 @@ count(campaign, y) %>%
   group_by(campaign) %>%
   mutate(prop = n/sum(n))
 
+skewness(bank_data_proc$campaign)
+#High skew even after removing outliers so will perform a log transform
+bank_data_proc = bank_data_proc %>%
+  mutate(campaign_log = log(campaign))
+
 #shows a decrease in subscriptions as number of calls increases
 
 
@@ -131,7 +149,7 @@ bank_data_proc %>%
 # some significance the two response outcomes
 # making this into a dummy variable for contacted vs not
 bank_data_proc = bank_data_proc %>% 
-  mutate(pdays_dummy = if_else(pdays == 999, "0", "1")) %>% 
+  mutate(previously_contacted = if_else(pdays == 999, "0", "1")) %>% 
   select(-pdays)
 
 ggplot(bank_data_proc, aes(pdays_dummy, fill = y)) +
@@ -148,33 +166,50 @@ ggplot(bank_data_proc, aes(previous, fill = y)) +
 #bank_data = bank_data %>% 
 #mutate(previous = if_else(previous >=  2, "2+", if_else(previous == 1, "1", "0")))
 #may still be highly correlated with pdays
+#removing for now as only interested in if they were previously ocntacted or not
+bank_data_proc = bank_data_proc %>%
+  select(-previous)
+
 ## Poutcome ----------------------------
 ggplot(bank_data_proc, aes(poutcome, fill = y)) +
   geom_bar(position = "fill") +
   coord_flip()
 #shows that there is a higher chance of subscription if the individual has subscribed in the past
+
 ## Age ---------------------------------
 summary(bank_data_proc$age)
 # other analysis transformed this data into categorical variable
 #could be considered going forward
+bank_data_proc %>% 
+  ggplot() +
+  aes(x = age) +
+  geom_bar()
+skewness(bank_data_proc$age)
+#no need for transformation
 ## Job ---------------------------------
 table(bank_data_proc$job)
 bank_data_proc = bank_data_proc %>% 
   filter(job != "unknown")
+
 ## Marital -----------------------------
 table(bank_data_proc$marital)
 bank_data_proc = bank_data_proc %>% 
   filter(marital != "unknown")
+
 ## Education ---------------------------
+#Not enough illiterate observations to make assumptions from, should be removed
 bank_data_proc = bank_data_proc %>% 
   filter(education != "illiterate")
 
+#Rather than removing all unknown observations, recoding these observations to university degree.
+#These both have similar proportions of yes/no subscriptions
 bank_data_proc = bank_data_proc %>% 
   mutate(education = recode(education, "unknown" = "university.degree"))
 
 ggplot(bank_data_proc, aes(education, fill = y)) +
   geom_bar(position = "fill") +
   coord_flip()
+
 ## Housing -----------------------------
 bank_data_proc %>%
   count(housing, y) %>%
@@ -183,8 +218,9 @@ bank_data_proc %>%
 #similar proportions across all categories
 #test to see if significant against response
 chisq.test(bank_data_proc$housing, bank_data_proc$y)
-bank_data_proc = bank_data_proc %>% 
-  select(-housing)
+#bank_data_proc = bank_data_proc %>% 
+  #select(-housing)
+
 ## Loan --------------------------------
 bank_data_proc %>%
   count(loan, y) %>%
@@ -193,12 +229,16 @@ bank_data_proc %>%
 #similar proportions across all categories
 #test to see if significant against response
 chisq.test(bank_data_proc$loan, bank_data_proc$y)
+#bank_data_proc = bank_data_proc %>% 
+  #select(-loan)
 bank_data_proc = bank_data_proc %>% 
-  select(-loan)
+  filter(loan != "unknown")
+
 ## Default -----------------------------
-#20% of observations are unknown, rmeoving this from the dataset
+#20% of observations are unknown, removing this from the dataset
 bank_data_proc = bank_data_proc %>% 
   select(-default)
+
 ## Month -------------------------------
 bank_data_proc %>% 
   ggplot() +
@@ -213,6 +253,7 @@ bank_data_proc %>%
   mutate(prop = n/sum(n))
 
 ## Duration ----------------------------
+#Removing as highly correlated with response variable
 bank_data_proc = bank_data_proc %>% 
   select(-duration)
 
@@ -240,6 +281,7 @@ ggplot(bank_data_proc, aes(euribor3m)) +
 ggplot(bank_data_proc, aes(x= y,y = euribor3m)) +
   geom_boxplot()
 table(bank_data_proc$euribor3m)
+skewness(bank_data_proc$euribor3m)
 
 #emp.var.rate
 ggplot(bank_data_proc, aes(emp.var.rate)) +
@@ -247,6 +289,7 @@ ggplot(bank_data_proc, aes(emp.var.rate)) +
 ggplot(bank_data_proc, aes(x=y,y = emp.var.rate)) +
   geom_boxplot()
 table(bank_data_proc$emp.var.rate)
+skewness(bank_data_proc$emp.var.rate)
 
 # nr.employed
 ggplot(bank_data_proc, aes(nr.employed)) +
@@ -254,6 +297,7 @@ ggplot(bank_data_proc, aes(nr.employed)) +
 ggplot(bank_data_proc, aes(x=y, y = nr.employed)) +
   geom_boxplot()
 table(bank_data_proc$nr.employed)
+skewness(bank_data_proc$nr.employed)
 
 #emp.var.rate and nr.employed are similar variables
 #nr.employed boxplot implies the nr.employed is more meaningful
@@ -271,3 +315,12 @@ corrplot(
   method = "number",
   type = "upper"
 )
+
+skewness(bank_data_proc$cons.conf.idx)
+skewness(bank_data_proc$cons.price.idx)
+
+
+# At the end of analysis we have transformed pdays into a dummy variable
+# filtered unknowns out of job and marital variables
+# filtered out illiterate observations from education and mutated unknowns to university level
+# removed default, emp.var.rate, and duration variables

@@ -20,4 +20,13 @@ library(GGally)
 # Categorical summaries
 library(janitor)
 
+# One-hot encoding
+library(fastDummies)
+
+# Elbow method for candidate cluster numbers (k-means)
+library(cluster)
+library(factoextra)
+
+#Skewness
+library(e1071)
 
